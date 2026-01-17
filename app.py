@@ -108,27 +108,30 @@ def analyze_crypto(
         else:
             report += "⚠️ 无法获取实时行情数据\n\n"
         
-        # 获取K线数据并分析
-        kline = fetcher.get_kline(symbol, timeframe='1d', limit=100)
-        if kline is not None and not kline.data.empty:
-            # 趋势分析
-            trend_result = trend_analyzer.analyze(kline.data, symbol)
-            if trend_result:
-                report += "## 📈 技术分析\n\n"
-                report += f"- **信号评分**: {trend_result.signal_score}/100\n"
-                report += f"- **趋势状态**: {trend_result.technical_indicators.trend_status}\n"
-                report += f"- **MA7**: ${trend_result.technical_indicators.ma7:,.2f}\n"
-                report += f"- **MA25**: ${trend_result.technical_indicators.ma25:,.2f}\n"
-                report += f"- **MA99**: ${trend_result.technical_indicators.ma99:,.2f}\n"
-                report += f"- **乖离率**: {trend_result.technical_indicators.bias_rate:.2f}%\n\n"
-                
-                # 信号解读
-                if trend_result.signal_score >= 70:
-                    report += "🟢 **信号**: 强买入信号\n\n"
-                elif trend_result.signal_score >= 50:
-                    report += "🟡 **信号**: 观望或轻仓\n\n"
-                else:
-                    report += "🔴 **信号**: 回避或减仓\n\n"
+        # 趋势分析 - CryptoTrendAnalyzer.analyze() 只接受 identifier 参数
+        trend_result = trend_analyzer.analyze(symbol)
+        if trend_result:
+            report += "## 📈 技术分析\n\n"
+            report += f"- **信号评分**: {trend_result.signal_strength}/100\n"
+            report += f"- **趋势状态**: {trend_result.technical.trend_status.value}\n"
+            if trend_result.technical.ma7 is not None:
+                report += f"- **MA7**: ${trend_result.technical.ma7:,.2f}\n"
+            if trend_result.technical.ma25 is not None:
+                report += f"- **MA25**: ${trend_result.technical.ma25:,.2f}\n"
+            if trend_result.technical.ma99 is not None:
+                report += f"- **MA99**: ${trend_result.technical.ma99:,.2f}\n"
+            if trend_result.technical.bias_7 is not None:
+                report += f"- **乖离率**: {trend_result.technical.bias_7:.2f}%\n\n"
+            else:
+                report += "\n"
+            
+            # 信号解读
+            if trend_result.signal_strength >= 70:
+                report += "🟢 **信号**: 强买入信号\n\n"
+            elif trend_result.signal_strength >= 50:
+                report += "🟡 **信号**: 观望或轻仓\n\n"
+            else:
+                report += "🔴 **信号**: 回避或减仓\n\n"
         
         # AI 综合分析
         report += "## 🤖 AI 分析\n\n"
@@ -144,8 +147,13 @@ def analyze_crypto(
                     'change_24h': quote.change_24h,
                     'volume_24h': quote.volume_24h,
                 }
-            if kline is not None:
-                context['kline_data'] = kline.data.to_dict('records')[-30:]  # 最近30条
+            # 获取 K 线数据供 AI 分析使用
+            try:
+                kline = fetcher.get_kline(symbol, timeframe='1d', limit=30)
+                if kline is not None and kline.data is not None and not kline.data.empty:
+                    context['kline_data'] = kline.data.to_dict('records')[-30:]  # 最近30条
+            except Exception as kline_err:
+                logger.warning(f"获取 K 线数据失败: {kline_err}")
             
             ai_result = ai_analyzer.analyze(context)
             if ai_result:
