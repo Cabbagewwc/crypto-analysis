@@ -4,11 +4,22 @@
 
 用于 HuggingFace Spaces 部署的 Web 界面
 支持 Gemini 和 OpenAI 兼容 API（DeepSeek、通义千问等）
+同时运行 Telegram Bot 提供双向对话功能
 """
 
 import os
+import asyncio
+import threading
+import logging
 import gradio as gr
 from datetime import datetime
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # 设置环境变量
 os.environ.setdefault('PYTHONUNBUFFERED', '1')
@@ -311,5 +322,55 @@ with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as
     Made with ❤️ | [GitHub](https://github.com/Cabbagewwc/crypto-analysis)
     """)
 
+
+def start_telegram_bot():
+    """在后台线程中启动 Telegram Bot"""
+    telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    if not telegram_token:
+        logger.info("未配置 TELEGRAM_BOT_TOKEN，跳过 Telegram Bot 启动")
+        return
+    
+    try:
+        from bot.telegram_bot import TelegramBot
+        from bot.context_manager import init_context_manager
+        from config import get_config
+        
+        # 获取配置
+        config = get_config()
+        
+        # 初始化上下文管理器
+        init_context_manager(config.to_dict())
+        
+        # 创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 初始化 Telegram Bot
+        allowed_chats = None
+        chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+        if chat_id:
+            allowed_chats = [chat_id]
+        
+        bot = TelegramBot(
+            token=telegram_token,
+            allowed_chat_ids=allowed_chats
+        )
+        
+        logger.info("🤖 Telegram Bot 启动中...")
+        
+        # 运行 bot
+        loop.run_until_complete(bot.run())
+        
+    except Exception as e:
+        logger.error(f"Telegram Bot 启动失败: {e}")
+
+
 if __name__ == "__main__":
+    # 在后台线程中启动 Telegram Bot
+    telegram_thread = threading.Thread(target=start_telegram_bot, daemon=True)
+    telegram_thread.start()
+    
+    logger.info("🚀 启动 Gradio Web UI...")
+    
+    # 启动 Gradio
     demo.launch(server_name="0.0.0.0", server_port=7860)

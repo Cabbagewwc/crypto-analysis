@@ -17,6 +17,8 @@
 - **多维度分析** - 技术面 + 链上数据 + 舆情情报 + 实时行情
 - **市场复盘** - 每日市场概览、恐惧贪婪指数、BTC 主导率
 - **多渠道推送** - 支持企业微信、飞书、Telegram、邮件（自动识别）
+- **💬 双向对话** - Telegram/企业微信应用双向对话，随时询问市场分析
+- **🖼️ 图像生成** - AI 生成市场分析海报，一键分享
 - **零成本部署** - GitHub Actions 免费运行，无需服务器
 - **💰 白嫖 Gemini API** - Google AI Studio 提供免费额度，个人使用完全够用
 - **🔄 多模型支持** - 支持 OpenAI 兼容 API（DeepSeek、通义千问等）作为备选
@@ -183,6 +185,7 @@ BTC 主导率: 52.3%
 ```
 daily_crypto_analysis/
 ├── main.py                    # 主程序入口
+├── run_bot.py                 # 双向对话 Bot 入口
 ├── analyzer.py                # AI 分析器（Gemini）
 ├── crypto_analyzer.py         # 加密货币趋势分析器
 ├── crypto_market_analyzer.py  # 市场复盘分析
@@ -196,6 +199,12 @@ daily_crypto_analysis/
 │   ├── geckoterminal_fetcher.py  # 链上 DEX 数据
 │   ├── akshare_fetcher.py     # (保留，股票数据)
 │   └── ...
+├── bot/                       # 双向对话机器人
+│   ├── telegram_bot.py        # Telegram Bot
+│   ├── wecom_adapter.py       # 企业微信应用
+│   ├── context_manager.py     # 上下文管理
+│   ├── message_handler.py     # 消息处理
+│   └── image_generator.py     # 图像生成
 ├── .github/workflows/         # GitHub Actions
 ├── Dockerfile                 # Docker 镜像
 └── docker-compose.yml         # Docker 编排
@@ -233,6 +242,8 @@ daily_crypto_analysis/
 - [x] GitHub Actions
 - [x] 技术指标分析
 - [x] 链上数据分析
+- [x] 双向对话（Telegram/企业微信应用）
+- [x] AI 图像生成（市场分析海报）
 - [ ] Web 管理界面
 - [ ] 历史分析回测
 - [ ] 合约分析支持

@@ -37,3 +37,54 @@ license: mit
 
 在 Settings → Variables and secrets 中添加：
 - `CRYPTO_LIST`: 默认分析的交易对列表（如 BTC/USDT,ETH/USDT）
+
+## 🤖 Telegram Bot 双向对话功能
+
+本 Space 支持运行 Telegram Bot，让你可以随时与 AI 对话交流市场分析。
+
+### 配置步骤
+
+1. **创建 Telegram Bot**
+   - 在 Telegram 中找到 @BotFather
+   - 发送 `/newbot` 创建新 Bot
+   - 获取 Bot Token
+
+2. **配置 HuggingFace Secrets**
+   - 进入 Space 的 Settings → Variables and secrets
+   - 添加以下 Secrets（点击 "New secret"）：
+
+   | Secret 名称 | 说明 | 示例 |
+   |------------|------|------|
+   | `TELEGRAM_BOT_TOKEN` | Bot Token | `123456:ABC-DEF...` |
+   | `TELEGRAM_CHAT_ID` | 允许的用户 ID（可选） | `123456789` |
+   | `OPENAI_API_KEY` | AI API Key | `sk-xxx` |
+   | `OPENAI_BASE_URL` | API Base URL | `https://api.deepseek.com/v1` |
+   | `OPENAI_MODEL` | 模型名称 | `deepseek-chat` |
+
+3. **重启 Space**
+   - 配置完成后，点击 "Restart" 重启 Space
+   - Bot 会自动在后台启动
+
+### 支持的命令
+
+| 命令 | 功能 |
+|------|------|
+| `/start` | 开始对话 |
+| `/help` | 查看帮助 |
+| `/report` | 获取最新市场报告 |
+| `/image` | 生成市场分析海报 |
+| `/status` | 查看系统状态 |
+| `/clear` | 清除对话历史 |
+
+### 直接对话
+
+除了命令，你也可以直接发送消息与 AI 对话：
+- "BTC 现在能买吗？"
+- "分析一下 ETH 的走势"
+- "今天市场情绪如何？"
+
+AI 会结合最新的市场报告数据给出智能回复。
+
+---
+
+Made with ❤️ | [GitHub](https://github.com/Cabbagewwc/crypto-analysis)

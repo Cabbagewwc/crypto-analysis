@@ -45,5 +45,11 @@ requests>=2.31.0            # HTTP 请求
 fake-useragent>=1.4.0       # 随机 User-Agent 防封禁
 httpx[socks]                # HTTP 客户端 + SOCKS 代理支持（OpenAI 可选依赖）
 
+# ===================================
+# 双向对话 Bot（可选）
+# ===================================
+python-telegram-bot>=21.0   # Telegram Bot API（双向对话）
+pycryptodome>=3.19.0        # AES 加密（企业微信消息加解密）
+
 # 数据库
 # SQLite 是 Python 内置，无需额外安装

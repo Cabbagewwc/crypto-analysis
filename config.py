@@ -130,6 +130,19 @@ class Config:
     custom_webhook_urls: List[str] = field(default_factory=list)
     custom_webhook_bearer_token: Optional[str] = None  # Bearer Token（用于需要认证的 Webhook）
     
+    # === 企业微信应用配置（支持双向对话）===
+    # 注意：这与 wechat_webhook_url（群机器人）不同
+    # 群机器人只能单向推送，应用可以双向对话
+    wecom_corp_id: Optional[str] = None  # 企业 ID
+    wecom_agent_id: Optional[int] = None  # 应用 AgentId
+    wecom_secret: Optional[str] = None  # 应用 Secret
+    wecom_token: Optional[str] = None  # 回调 Token
+    wecom_encoding_aes_key: Optional[str] = None  # 回调 EncodingAESKey
+    
+    # === 图像生成配置 ===
+    image_model: str = "dall-e-3"  # 图像生成模型 (dall-e-3, gpt-4o 等)
+    image_generation_enabled: bool = True  # 是否启用图像生成
+    
     # 单币推送模式：每分析完一个代币立即推送，而不是汇总后推送
     single_stock_notify: bool = False
     single_crypto_notify: bool = False  # 新增：加密货币版
@@ -295,6 +308,18 @@ class Config:
             pushover_api_token=os.getenv('PUSHOVER_API_TOKEN'),
             custom_webhook_urls=[u.strip() for u in os.getenv('CUSTOM_WEBHOOK_URLS', '').split(',') if u.strip()],
             custom_webhook_bearer_token=os.getenv('CUSTOM_WEBHOOK_BEARER_TOKEN'),
+            
+            # 企业微信应用配置
+            wecom_corp_id=os.getenv('WECOM_CORP_ID'),
+            wecom_agent_id=int(os.getenv('WECOM_AGENT_ID', '0')) or None,
+            wecom_secret=os.getenv('WECOM_SECRET'),
+            wecom_token=os.getenv('WECOM_TOKEN'),
+            wecom_encoding_aes_key=os.getenv('WECOM_ENCODING_AES_KEY'),
+            
+            # 图像生成配置
+            image_model=os.getenv('IMAGE_MODEL', 'dall-e-3'),
+            image_generation_enabled=os.getenv('IMAGE_GENERATION_ENABLED', 'true').lower() == 'true',
+            
             single_stock_notify=os.getenv('SINGLE_STOCK_NOTIFY', 'false').lower() == 'true',
             single_crypto_notify=os.getenv('SINGLE_CRYPTO_NOTIFY', 'false').lower() == 'true',
             feishu_max_bytes=int(os.getenv('FEISHU_MAX_BYTES', '20000')),
@@ -491,6 +516,54 @@ class Config:
                     'symbol': identifier.upper(),
                     'address': None,
                 }
+    
+    # === 便捷访问属性（供 Bot 模块使用）===
+    
+    @property
+    def TELEGRAM_BOT_TOKEN(self) -> Optional[str]:
+        """Telegram Bot Token"""
+        return self.telegram_bot_token
+    
+    @property
+    def TELEGRAM_CHAT_ID(self) -> Optional[str]:
+        """Telegram Chat ID"""
+        return self.telegram_chat_id
+    
+    @property
+    def OPENAI_API_KEY(self) -> Optional[str]:
+        """OpenAI API Key"""
+        return self.openai_api_key
+    
+    @property
+    def OPENAI_BASE_URL(self) -> str:
+        """OpenAI API Base URL"""
+        return self.openai_base_url or "https://api.openai.com/v1"
+    
+    @property
+    def OPENAI_MODEL(self) -> str:
+        """OpenAI Model Name"""
+        return self.openai_model
+    
+    @property
+    def IMAGE_MODEL(self) -> str:
+        """Image Generation Model"""
+        return self.image_model
+    
+    def to_dict(self) -> dict:
+        """转换为字典（供 Bot 初始化使用）"""
+        return {
+            "TELEGRAM_BOT_TOKEN": self.telegram_bot_token,
+            "TELEGRAM_CHAT_ID": self.telegram_chat_id,
+            "OPENAI_API_KEY": self.openai_api_key,
+            "OPENAI_BASE_URL": self.OPENAI_BASE_URL,
+            "OPENAI_MODEL": self.openai_model,
+            "IMAGE_MODEL": self.image_model,
+            "WECOM_CORP_ID": self.wecom_corp_id,
+            "WECOM_AGENT_ID": self.wecom_agent_id,
+            "WECOM_SECRET": self.wecom_secret,
+            "WECOM_TOKEN": self.wecom_token,
+            "WECOM_ENCODING_AES_KEY": self.wecom_encoding_aes_key,
+        }
 
 
 # === 便捷的配置访问函数 ===
