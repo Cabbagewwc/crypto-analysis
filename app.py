@@ -336,58 +336,72 @@ def start_telegram_bot():
         logger.warning("未配置 OPENAI_API_KEY，Telegram Bot 无法启动")
         return
     
-    try:
-        from bot.telegram_bot import TelegramBot
-        from bot.context_manager import init_context_manager
-        
-        # 初始化上下文管理器
-        init_context_manager()
-        
-        # 创建新的事件循环（在后台线程中需要创建新的循环）
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # 初始化 Telegram Bot
-        allowed_chats = None
-        chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-        if chat_id:
-            try:
-                allowed_chats = [int(x.strip()) for x in chat_id.split(',')]
-            except ValueError:
-                logger.warning(f"无法解析 TELEGRAM_CHAT_ID: {chat_id}")
-        
-        # 获取 API 配置
-        base_url = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
-        model = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
-        image_model = os.environ.get('IMAGE_MODEL', 'dall-e-3')
-        
-        bot = TelegramBot(
-            token=telegram_token,
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-            image_model=image_model,
-            allowed_chat_ids=allowed_chats
-        )
-        
-        logger.info("🤖 Telegram Bot 启动中...")
-        
-        # 使用异步方式启动（适用于后台线程）
-        async def run_bot():
-            await bot.start_polling()
-            # 保持运行
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                pass
-            finally:
-                await bot.stop()
-        
-        loop.run_until_complete(run_bot())
-        
-    except Exception as e:
-        logger.error(f"Telegram Bot 启动失败: {e}", exc_info=True)
+    import time
+    max_retries = 5
+    retry_delay = 10  # 秒
+    
+    for attempt in range(max_retries):
+        try:
+            from bot.telegram_bot import TelegramBot
+            from bot.context_manager import init_context_manager
+            
+            # 初始化上下文管理器
+            init_context_manager()
+            
+            # 创建新的事件循环（在后台线程中需要创建新的循环）
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # 初始化 Telegram Bot
+            allowed_chats = None
+            chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+            if chat_id:
+                try:
+                    allowed_chats = [int(x.strip()) for x in chat_id.split(',')]
+                except ValueError:
+                    logger.warning(f"无法解析 TELEGRAM_CHAT_ID: {chat_id}")
+            
+            # 获取 API 配置
+            base_url = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            model = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+            image_model = os.environ.get('IMAGE_MODEL', 'dall-e-3')
+            
+            bot = TelegramBot(
+                token=telegram_token,
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                image_model=image_model,
+                allowed_chat_ids=allowed_chats
+            )
+            
+            logger.info(f"🤖 Telegram Bot 启动中... (尝试 {attempt + 1}/{max_retries})")
+            
+            # 使用异步方式启动（适用于后台线程）
+            async def run_bot():
+                await bot.start_polling()
+                # 保持运行
+                try:
+                    while True:
+                        await asyncio.sleep(1)
+                except asyncio.CancelledError:
+                    pass
+                finally:
+                    await bot.stop()
+            
+            loop.run_until_complete(run_bot())
+            break  # 成功启动，退出重试循环
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "No address associated with hostname" in error_msg or "ConnectError" in error_msg:
+                logger.warning(f"Telegram Bot 网络连接失败 (尝试 {attempt + 1}/{max_retries}): {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"等待 {retry_delay} 秒后重试...")
+                    time.sleep(retry_delay)
+                    continue
+            logger.error(f"Telegram Bot 启动失败: {e}", exc_info=True)
+            break
 
 
 if __name__ == "__main__":
