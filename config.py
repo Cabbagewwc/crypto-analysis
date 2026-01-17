@@ -43,7 +43,9 @@ class Config:
     
     # === 交易所配置 ===
     # 主交易所 (binance, okx, bybit 等)
-    default_exchange: str = 'binance'
+    # 注意：Binance 在某些地区（如美国）被限制，GitHub Actions 默认在美国运行
+    # 因此默认使用 OKX 以确保全球可访问性
+    default_exchange: str = 'okx'
     
     # Binance API (可选，公开数据不需要)
     binance_api_key: Optional[str] = None
@@ -244,7 +246,7 @@ class Config:
             # 加密货币配置
             crypto_list=crypto_list,
             stock_list=stock_list,  # 保留兼容
-            default_exchange=os.getenv('DEFAULT_EXCHANGE', 'binance'),
+            default_exchange=os.getenv('DEFAULT_EXCHANGE', 'okx'),
             binance_api_key=os.getenv('BINANCE_API_KEY'),
             binance_api_secret=os.getenv('BINANCE_API_SECRET'),
             okx_api_key=os.getenv('OKX_API_KEY'),

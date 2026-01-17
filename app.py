@@ -31,7 +31,7 @@ def analyze_crypto(
     api_key: str, 
     api_base_url: str,
     model_name: str,
-    exchange: str = "binance"
+    exchange: str = "okx"
 ) -> str:
     """
     分析单个加密货币
@@ -70,7 +70,7 @@ def analyze_crypto(
             os.environ['OPENAI_API_KEY'] = ''  # 清空 OpenAI
         
         # 初始化组件
-        fetcher = CCXTFetcher()
+        fetcher = CCXTFetcher(exchange=exchange)
         trend_analyzer = CryptoTrendAnalyzer()
         
         # 根据提供商初始化 AI 分析器
@@ -86,7 +86,7 @@ def analyze_crypto(
         report += f"**AI 模型**: {model_name if api_provider == 'openai' else 'Gemini'}\n\n"
         
         # 获取实时行情
-        quote = fetcher.get_realtime_quote(symbol, exchange)
+        quote = fetcher.get_realtime_quote(symbol)
         if quote:
             report += "## 📊 实时行情\n\n"
             report += f"- **当前价格**: ${quote.price:,.2f}\n"
@@ -98,10 +98,10 @@ def analyze_crypto(
             report += "⚠️ 无法获取实时行情数据\n\n"
         
         # 获取K线数据并分析
-        kline = fetcher.get_kline(symbol, exchange, timeframe='1d', limit=100)
-        if kline is not None and not kline.empty:
+        kline = fetcher.get_kline(symbol, timeframe='1d', limit=100)
+        if kline is not None and not kline.data.empty:
             # 趋势分析
-            trend_result = trend_analyzer.analyze(kline, symbol)
+            trend_result = trend_analyzer.analyze(kline.data, symbol)
             if trend_result:
                 report += "## 📈 技术分析\n\n"
                 report += f"- **信号评分**: {trend_result.signal_score}/100\n"
@@ -134,7 +134,7 @@ def analyze_crypto(
                     'volume_24h': quote.volume_24h,
                 }
             if kline is not None:
-                context['kline_data'] = kline.to_dict('records')[-30:]  # 最近30条
+                context['kline_data'] = kline.data.to_dict('records')[-30:]  # 最近30条
             
             ai_result = ai_analyzer.analyze(context)
             if ai_result:
@@ -252,8 +252,8 @@ with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as
                 
                 exchange_input = gr.Dropdown(
                     label="交易所",
-                    choices=["binance", "okx", "coinbase", "bybit", "kucoin"],
-                    value="binance"
+                    choices=["okx", "binance", "coinbase", "bybit", "kucoin"],
+                    value="okx"
                 )
                 
                 analyze_btn = gr.Button("🔍 开始分析", variant="primary")

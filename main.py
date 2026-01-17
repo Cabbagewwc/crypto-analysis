@@ -146,7 +146,7 @@ class CryptoAnalysisPipeline:
         self.max_workers = max_workers or self.config.max_workers
         
         # 初始化各模块
-        self.ccxt_fetcher = CCXTFetcher()  # 交易所数据获取
+        self.ccxt_fetcher = CCXTFetcher(exchange='okx')  # 使用 OKX，Binance 在某些地区被限制
         self.gecko_fetcher = GeckoTerminalFetcher()  # 链上数据获取
         self.trend_analyzer = CryptoTrendAnalyzer()  # 加密货币趋势分析器
         self.analyzer = GeminiAnalyzer()
@@ -169,14 +169,14 @@ class CryptoAnalysisPipeline:
     def fetch_crypto_data(
         self,
         symbol: str,
-        exchange: str = 'binance'
+        exchange: str = 'okx'  # 默认使用 OKX，Binance 在某些地区被限制
     ) -> Tuple[bool, Optional[str], Optional[Dict]]:
         """
         获取单个加密货币数据
         
         Args:
             symbol: 交易对符号（如 BTC/USDT）
-            exchange: 交易所名称（默认 binance）
+            exchange: 交易所名称（默认 okx）
             
         Returns:
             Tuple[是否成功, 错误信息, 数据字典]
@@ -184,14 +184,14 @@ class CryptoAnalysisPipeline:
         try:
             logger.info(f"[{symbol}] 开始从 {exchange} 获取数据...")
             
-            # 获取实时行情
-            realtime_quote = self.ccxt_fetcher.get_realtime_quote(symbol, exchange)
+            # 获取实时行情（只传 symbol 参数）
+            realtime_quote = self.ccxt_fetcher.get_realtime_quote(symbol)
             if not realtime_quote:
                 return False, "获取实时行情失败", None
             
             # 获取K线数据（用于技术分析）
-            kline_data = self.ccxt_fetcher.get_kline(symbol, exchange, timeframe='1d', limit=100)
-            if not kline_data or kline_data.empty:
+            kline_data = self.ccxt_fetcher.get_kline(symbol, timeframe='1d', limit=100)
+            if not kline_data or kline_data.data.empty:
                 return False, "获取K线数据失败", None
             
             # 尝试获取链上数据（如果是链上Token）
