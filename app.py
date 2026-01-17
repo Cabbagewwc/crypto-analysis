@@ -3,6 +3,7 @@
 🪙 加密货币智能分析系统 - Gradio Web UI
 
 用于 HuggingFace Spaces 部署的 Web 界面
+支持 Gemini 和 OpenAI 兼容 API（DeepSeek、通义千问等）
 """
 
 import os
@@ -24,13 +25,23 @@ except ImportError as e:
     IMPORT_ERROR = str(e)
 
 
-def analyze_crypto(symbol: str, gemini_api_key: str, exchange: str = "binance") -> str:
+def analyze_crypto(
+    symbol: str, 
+    api_provider: str,
+    api_key: str, 
+    api_base_url: str,
+    model_name: str,
+    exchange: str = "binance"
+) -> str:
     """
     分析单个加密货币
     
     Args:
         symbol: 交易对（如 BTC/USDT）
-        gemini_api_key: Gemini API Key
+        api_provider: API 提供商（gemini / openai）
+        api_key: API Key
+        api_base_url: API Base URL（OpenAI 兼容 API 用）
+        model_name: 模型名称
         exchange: 交易所名称
     
     Returns:
@@ -42,21 +53,37 @@ def analyze_crypto(symbol: str, gemini_api_key: str, exchange: str = "binance") 
     if not symbol:
         return "❌ 请输入交易对符号（如 BTC/USDT）"
     
-    if not gemini_api_key:
-        return "❌ 请输入 Gemini API Key"
+    if not api_key:
+        return "❌ 请输入 API Key"
     
     try:
-        # 设置 API Key
-        os.environ['GEMINI_API_KEY'] = gemini_api_key
+        # 根据选择的 API 提供商设置环境变量
+        if api_provider == "openai":
+            os.environ['OPENAI_API_KEY'] = api_key
+            if api_base_url:
+                os.environ['OPENAI_BASE_URL'] = api_base_url
+            if model_name:
+                os.environ['OPENAI_MODEL'] = model_name
+            os.environ['GEMINI_API_KEY'] = ''  # 清空 Gemini，让系统使用 OpenAI
+        else:
+            os.environ['GEMINI_API_KEY'] = api_key
+            os.environ['OPENAI_API_KEY'] = ''  # 清空 OpenAI
         
         # 初始化组件
         fetcher = CCXTFetcher()
         trend_analyzer = CryptoTrendAnalyzer()
-        ai_analyzer = GeminiAnalyzer(api_key=gemini_api_key)
+        
+        # 根据提供商初始化 AI 分析器
+        if api_provider == "openai":
+            from analyzer import GeminiAnalyzer
+            ai_analyzer = GeminiAnalyzer()  # 会自动检测并使用 OpenAI
+        else:
+            ai_analyzer = GeminiAnalyzer(api_key=api_key)
         
         # 获取数据
         report = f"# 🪙 {symbol} 分析报告\n\n"
-        report += f"**分析时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        report += f"**分析时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        report += f"**AI 模型**: {model_name if api_provider == 'openai' else 'Gemini'}\n\n"
         
         # 获取实时行情
         quote = fetcher.get_realtime_quote(symbol, exchange)
@@ -164,6 +191,22 @@ def market_overview() -> str:
         return f"❌ 获取市场概览失败: {str(e)}"
 
 
+def update_api_fields(provider: str):
+    """根据选择的 API 提供商更新界面"""
+    if provider == "openai":
+        return (
+            gr.update(visible=True, placeholder="如: https://api.deepseek.com/v1"),
+            gr.update(visible=True, value="deepseek-chat"),
+            gr.update(placeholder="OpenAI 兼容 API Key")
+        )
+    else:
+        return (
+            gr.update(visible=False),
+            gr.update(visible=False),
+            gr.update(placeholder="从 https://aistudio.google.com 获取")
+        )
+
+
 # 创建 Gradio 界面
 with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
@@ -182,24 +225,52 @@ with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as
                     placeholder="例如: BTC/USDT, ETH/USDT, SOL/USDT",
                     value="BTC/USDT"
                 )
+                
+                api_provider = gr.Radio(
+                    label="AI 模型提供商",
+                    choices=[("Gemini（免费）", "gemini"), ("OpenAI 兼容 API", "openai")],
+                    value="openai"
+                )
+                
                 api_key_input = gr.Textbox(
-                    label="Gemini API Key",
-                    placeholder="从 https://aistudio.google.com 获取",
+                    label="API Key",
+                    placeholder="OpenAI 兼容 API Key",
                     type="password"
                 )
+                
+                api_base_url = gr.Textbox(
+                    label="API Base URL",
+                    placeholder="如: https://api.deepseek.com/v1",
+                    visible=True
+                )
+                
+                model_name = gr.Textbox(
+                    label="模型名称",
+                    value="deepseek-chat",
+                    visible=True
+                )
+                
                 exchange_input = gr.Dropdown(
                     label="交易所",
                     choices=["binance", "okx", "coinbase", "bybit", "kucoin"],
                     value="binance"
                 )
+                
                 analyze_btn = gr.Button("🔍 开始分析", variant="primary")
             
             with gr.Column(scale=2):
                 analysis_output = gr.Markdown(label="分析结果")
         
+        # 根据 API 提供商更新界面
+        api_provider.change(
+            fn=update_api_fields,
+            inputs=[api_provider],
+            outputs=[api_base_url, model_name, api_key_input]
+        )
+        
         analyze_btn.click(
             fn=analyze_crypto,
-            inputs=[symbol_input, api_key_input, exchange_input],
+            inputs=[symbol_input, api_provider, api_key_input, api_base_url, model_name, exchange_input],
             outputs=analysis_output
         )
     
@@ -218,16 +289,22 @@ with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as
     
     ## 📖 使用说明
     
-    1. **币种分析**: 输入交易对和 API Key，获取详细的技术分析和 AI 建议
-    2. **市场概览**: 查看整体市场情况，包括恐惧贪婪指数、涨跌榜等
+    1. **选择 AI 模型**:
+       - **Gemini**: Google 免费 API，从 [AI Studio](https://aistudio.google.com) 获取
+       - **OpenAI 兼容 API**: 支持 DeepSeek、通义千问、Moonshot 等第三方服务
     
-    ## 🔑 获取 API Key
+    2. **OpenAI 兼容 API 配置示例**:
     
-    - **Gemini API**: 访问 [Google AI Studio](https://aistudio.google.com) 免费获取
+       | 服务商 | Base URL | 模型名称 |
+       |--------|----------|----------|
+       | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+       | 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-turbo` |
+       | Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+       | 硅基流动 | `https://api.siliconflow.cn/v1` | `Qwen/Qwen2.5-72B-Instruct` |
     
     ## 📊 支持的交易所
     
-    - Binance、OKX、Coinbase、Bybit、Kucoin 等 100+ 交易所
+    Binance、OKX、Coinbase、Bybit、Kucoin 等 100+ 交易所
     
     ---
     
