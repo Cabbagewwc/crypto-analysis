@@ -260,13 +260,13 @@ class CryptoAnalysisPipeline:
                           f"24h涨跌={realtime_quote.change_24h:+.2f}%, 成交量=${realtime_quote.volume_24h:,.0f}")
             
             # Step 2: 趋势分析（基于加密货币交易理念）
+            # 注意：CryptoTrendAnalyzer.analyze() 只接受 identifier 参数，内部会自动获取数据
             trend_result: Optional[CryptoAnalysisResult] = None
             try:
-                if kline_data is not None and not kline_data.empty:
-                    trend_result = self.trend_analyzer.analyze(kline_data, symbol)
-                    if trend_result:
-                        logger.info(f"[{symbol}] 趋势分析: 信号评分={trend_result.signal_score}/100, "
-                                  f"趋势={trend_result.technical_indicators.trend_status}")
+                trend_result = self.trend_analyzer.analyze(symbol)
+                if trend_result:
+                    logger.info(f"[{symbol}] 趋势分析: 信号评分={trend_result.signal_strength}/100, "
+                              f"趋势={trend_result.technical.trend_status.value}")
             except Exception as e:
                 logger.warning(f"[{symbol}] 趋势分析失败: {e}")
             
@@ -311,13 +311,13 @@ class CryptoAnalysisPipeline:
             # 添加趋势分析结果
             if trend_result:
                 context['trend_analysis'] = {
-                    'signal_score': trend_result.signal_score,
-                    'trend_status': trend_result.technical_indicators.trend_status,
-                    'ma7': trend_result.technical_indicators.ma7,
-                    'ma25': trend_result.technical_indicators.ma25,
-                    'ma99': trend_result.technical_indicators.ma99,
-                    'bias_rate': trend_result.technical_indicators.bias_rate,
-                    'momentum': trend_result.technical_indicators.momentum,
+                    'signal_strength': trend_result.signal_strength,
+                    'trend_status': trend_result.technical.trend_status.value,
+                    'ma7': trend_result.technical.ma7,
+                    'ma25': trend_result.technical.ma25,
+                    'ma99': trend_result.technical.ma99,
+                    'bias_7': trend_result.technical.bias_7,
+                    'rsi_14': trend_result.technical.rsi_14,
                 }
             
             # 添加链上数据
