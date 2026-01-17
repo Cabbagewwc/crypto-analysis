@@ -294,18 +294,45 @@ class CryptoAnalysisPipeline:
                 logger.info(f"[{symbol}] 搜索服务不可用，跳过情报搜索")
             
             # Step 4: 构建分析上下文
+            # 注意：analyzer.py 期望 'code' 和 'crypto_name' 字段
+            today_data = {}
+            if kline_data is not None and hasattr(kline_data, 'data') and not kline_data.data.empty:
+                # 获取最新一条 K 线数据作为 today
+                latest_row = kline_data.data.iloc[-1]
+                today_data = {
+                    'open': latest_row.get('open', 0),
+                    'high': latest_row.get('high', 0),
+                    'low': latest_row.get('low', 0),
+                    'close': latest_row.get('close', 0),
+                    'volume': latest_row.get('volume', 0),
+                    'amount': latest_row.get('quote_volume', latest_row.get('volume', 0)),
+                    'pct_chg': realtime_quote.change_24h if realtime_quote else 0,
+                }
+                # 添加均线数据（如果趋势分析成功）
+                if trend_result:
+                    today_data['ma7'] = trend_result.technical.ma7
+                    today_data['ma25'] = trend_result.technical.ma25
+                    today_data['ma99'] = trend_result.technical.ma99
+            
             context = {
+                'code': symbol,  # analyzer.py 期望 'code' 字段
                 'symbol': symbol,
                 'name': crypto_name,
-                'exchange': crypto_data.get('exchange', 'binance'),
+                'crypto_name': crypto_name,  # analyzer.py 期望 'crypto_name' 字段
+                'exchange': crypto_data.get('exchange', 'okx'),
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'source': f"{crypto_data.get('exchange', 'OKX').upper()} Exchange",
+                'today': today_data,
+                'ma_status': trend_result.technical.trend_status.value if trend_result else '未知',
                 'realtime': {
                     'price': realtime_quote.price if realtime_quote else 0,
                     'change_24h': realtime_quote.change_24h if realtime_quote else 0,
                     'volume_24h': realtime_quote.volume_24h if realtime_quote else 0,
                     'high_24h': realtime_quote.high_24h if realtime_quote else 0,
                     'low_24h': realtime_quote.low_24h if realtime_quote else 0,
+                    'name': crypto_name,
                 } if realtime_quote else {},
-                'kline_data': kline_data.to_dict('records') if kline_data is not None else [],
+                'kline_data': kline_data.data.to_dict('records') if kline_data is not None and hasattr(kline_data, 'data') else [],
             }
             
             # 添加趋势分析结果
@@ -842,8 +869,12 @@ def main() -> int:
                     serpapi_keys=config.serpapi_keys
                 )
             
-            if config.gemini_api_key:
-                analyzer = GeminiAnalyzer(api_key=config.gemini_api_key)
+            # 始终初始化 GeminiAnalyzer，让它内部处理 Gemini/OpenAI 的选择逻辑
+            # GeminiAnalyzer 会自动检测可用的 API（优先 Gemini，然后 OpenAI 兼容 API）
+            analyzer = GeminiAnalyzer()
+            if not analyzer.is_available():
+                logger.warning("未配置任何 AI API Key，市场复盘将使用模板生成")
+                analyzer = None
             
             run_market_review(notifier, analyzer, search_service)
             return 0
