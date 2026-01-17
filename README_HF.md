@@ -18,13 +18,22 @@ license: mit
 
 ## 使用方式
 
-1. 在左侧输入要分析的交易对（如 BTC/USDT）
-2. 输入你的 Gemini API Key
-3. 点击"开始分析"
-4. 等待 AI 生成分析报告
+1. 选择 AI 服务（Gemini 免费 或 OpenAI 兼容 API）
+2. 输入你的 API Key
+3. 输入要分析的交易对（如 BTC/USDT）
+4. 点击"开始分析"
+5. 等待 AI 生成分析报告
 
-## 配置说明
+## 支持的 AI 服务
+
+| 服务商 | API Base URL | 模型名称 |
+|--------|-------------|----------|
+| **Gemini** | 自动 | gemini-1.5-flash |
+| **DeepSeek** | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| **通义千问** | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-turbo` |
+| **Moonshot** | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+
+## 配置说明（可选）
 
 在 Settings → Variables and secrets 中添加：
-- `GEMINI_API_KEY`: Google AI Studio 免费获取
-- `CRYPTO_LIST`: 默认分析的交易对列表
+- `CRYPTO_LIST`: 默认分析的交易对列表（如 BTC/USDT,ETH/USDT）
