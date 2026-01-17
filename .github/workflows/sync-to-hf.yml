@@ -1,0 +1,63 @@
+# ===================================
+# 同步到 HuggingFace Spaces
+# ===================================
+# 将代码自动同步到 HuggingFace Spaces
+# 
+# 配置要求：
+# 1. 在 HuggingFace 创建 Space（SDK: Docker）
+# 2. 在 GitHub Secrets 添加:
+#    - HF_TOKEN: HuggingFace Access Token (需要 write 权限)
+#    - HF_SPACE_NAME: Space 名称 (格式: username/space-name)
+
+name: 同步到 HuggingFace Spaces
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      
+      - name: 检查配置
+        run: |
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "⚠️ HF_TOKEN 未配置，跳过同步"
+            echo "SKIP_SYNC=true" >> $GITHUB_ENV
+          else
+            echo "SKIP_SYNC=false" >> $GITHUB_ENV
+          fi
+      
+      - name: 准备 HuggingFace 文件
+        if: env.SKIP_SYNC != 'true'
+        run: |
+          # 复制 README_HF.md 为 README.md (HuggingFace 需要)
+          if [ -f "README_HF.md" ]; then
+            cp README_HF.md README.md
+            echo "已复制 README_HF.md -> README.md"
+          fi
+          
+          # 复制 Dockerfile.hf 为 Dockerfile (HuggingFace 需要)
+          if [ -f "Dockerfile.hf" ]; then
+            cp Dockerfile.hf Dockerfile
+            echo "已复制 Dockerfile.hf -> Dockerfile"
+          fi
+      
+      - name: 同步到 HuggingFace
+        if: env.SKIP_SYNC != 'true'
+        uses: JacobLinCool/huggingface-sync@v1
+        with:
+          github: ${{ github.repository }}
+          huggingface: ${{ secrets.HF_SPACE_NAME || 'Cabbagewwc/crypto-analysis' }}
+          token: ${{ secrets.HF_TOKEN }}
+          # 同步选项
+          space: true  # 这是一个 Space，不是 Model/Dataset
