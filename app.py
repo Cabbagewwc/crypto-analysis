@@ -330,6 +330,12 @@ def start_telegram_bot():
         logger.info("未配置 TELEGRAM_BOT_TOKEN，跳过 Telegram Bot 启动")
         return
     
+    # 检查 OpenAI API 配置
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        logger.warning("未配置 OPENAI_API_KEY，Telegram Bot 无法启动")
+        return
+    
     try:
         from bot.telegram_bot import TelegramBot
         from bot.context_manager import init_context_manager
@@ -349,17 +355,29 @@ def start_telegram_bot():
         allowed_chats = None
         chat_id = os.environ.get('TELEGRAM_CHAT_ID')
         if chat_id:
-            allowed_chats = [chat_id]
+            try:
+                allowed_chats = [int(x.strip()) for x in chat_id.split(',')]
+            except ValueError:
+                logger.warning(f"无法解析 TELEGRAM_CHAT_ID: {chat_id}")
+        
+        # 获取 API 配置
+        base_url = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+        model = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+        image_model = os.environ.get('IMAGE_MODEL', 'dall-e-3')
         
         bot = TelegramBot(
             token=telegram_token,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            image_model=image_model,
             allowed_chat_ids=allowed_chats
         )
         
         logger.info("🤖 Telegram Bot 启动中...")
         
-        # 运行 bot
-        loop.run_until_complete(bot.run())
+        # 运行 bot（阻塞式）
+        bot.run()
         
     except Exception as e:
         logger.error(f"Telegram Bot 启动失败: {e}")
