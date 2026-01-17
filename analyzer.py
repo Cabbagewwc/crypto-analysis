@@ -411,6 +411,12 @@ class GeminiAnalyzer:
         # 检查 Gemini API Key 是否有效（过滤占位符）
         gemini_key_valid = self._api_key and not self._api_key.startswith('your_') and len(self._api_key) > 10
         
+        # 添加调试日志
+        logger.info(f"[AI初始化] Gemini API Key: {'已配置' if gemini_key_valid else '未配置'} (len={len(self._api_key or '')})")
+        logger.info(f"[AI初始化] OpenAI API Key: {'已配置' if config.openai_api_key else '未配置'} (len={len(config.openai_api_key or '')})")
+        logger.info(f"[AI初始化] OpenAI Base URL: {config.openai_base_url or '未配置'}")
+        logger.info(f"[AI初始化] OpenAI Model: {config.openai_model or '未配置'}")
+        
         # 优先尝试初始化 Gemini
         if gemini_key_valid:
             try:
@@ -447,7 +453,8 @@ class GeminiAnalyzer:
         )
         
         if not openai_key_valid:
-            logger.debug("OpenAI 兼容 API 未配置或配置无效")
+            # 修复：使用 INFO 级别日志，便于调试
+            logger.info(f"OpenAI 兼容 API 未配置或配置无效 (key={bool(config.openai_api_key)}, len={len(config.openai_api_key or '')})")
             return
         
         # 分离 import 和客户端创建，以便提供更准确的错误信息
