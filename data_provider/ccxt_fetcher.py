@@ -28,7 +28,8 @@ except ImportError:
     CCXT_AVAILABLE = False
     ccxt = None
 
-from .base import BaseFetcher
+# 注意：CCXTFetcher 不继承 BaseFetcher，因为它是为加密货币设计的，
+# 有完全不同的接口（get_kline, get_realtime_quote 等）
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class CryptoKlineData:
     trend_status: str = ""           # 趋势状态
 
 
-class CCXTFetcher(BaseFetcher):
+class CCXTFetcher:
     """
     CCXT 统一交易所数据获取器
     
@@ -93,6 +94,9 @@ class CCXTFetcher(BaseFetcher):
         # 获取实时行情
         quote = fetcher.get_realtime_quote('BTC/USDT')
     """
+    
+    # 数据源名称
+    name: str = "CCXTFetcher"
     
     # 支持的交易所
     SUPPORTED_EXCHANGES = ['binance', 'okx', 'bybit', 'gate', 'kucoin', 'huobi']
@@ -131,8 +135,6 @@ class CCXTFetcher(BaseFetcher):
             timeout: 请求超时时间 (ms)
             rate_limit: 是否启用速率限制
         """
-        super().__init__()
-        
         if not CCXT_AVAILABLE:
             raise ImportError("ccxt 库未安装，请运行: pip install ccxt")
         
