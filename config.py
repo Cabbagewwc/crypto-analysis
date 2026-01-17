@@ -1,0 +1,529 @@
+# -*- coding: utf-8 -*-
+"""
+===================================
+加密货币智能分析系统 - 配置管理模块
+===================================
+
+职责：
+1. 使用单例模式管理全局配置
+2. 从 .env 文件加载敏感配置
+3. 提供类型安全的配置访问接口
+
+支持的数据源：
+- CCXT: Binance, OKX 等交易所
+- GeckoTerminal: 链上 DEX 数据 (100+ 条链)
+"""
+
+import os
+from pathlib import Path
+from typing import List, Optional
+from dotenv import load_dotenv, dotenv_values
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Config:
+    """
+    系统配置类 - 单例模式
+    
+    设计说明：
+    - 使用 dataclass 简化配置属性定义
+    - 所有配置项从环境变量读取，支持默认值
+    - 类方法 get_instance() 实现单例访问
+    """
+    
+    # === 加密货币列表配置 ===
+    # 支持格式：
+    # 1. 交易所代币: "BTC/USDT", "binance:ETH/USDT"
+    # 2. 链上代币: "sol:token_address", "eth:0x..."
+    crypto_list: List[str] = field(default_factory=list)
+    
+    # 保留 stock_list 用于兼容（已废弃）
+    stock_list: List[str] = field(default_factory=list)
+    
+    # === 交易所配置 ===
+    # 主交易所 (binance, okx, bybit 等)
+    default_exchange: str = 'binance'
+    
+    # Binance API (可选，公开数据不需要)
+    binance_api_key: Optional[str] = None
+    binance_api_secret: Optional[str] = None
+    
+    # OKX API
+    okx_api_key: Optional[str] = None
+    okx_api_secret: Optional[str] = None
+    okx_passphrase: Optional[str] = None
+    
+    # === 链上数据配置 ===
+    # GeckoTerminal API (可选，免费版足够日常使用)
+    geckoterminal_api_key: Optional[str] = None
+    
+    # 偏好的链 (用于多链搜索)
+    preferred_chains: List[str] = field(default_factory=lambda: ['sol', 'eth', 'bsc'])
+    
+    # === 分析参数配置 ===
+    # 乖离率阈值 (加密货币波动大，建议 10-15%)
+    bias_threshold: float = 10.0
+    
+    # 巨鲸监控阈值 (USD)
+    whale_threshold_usd: float = 100000.0
+    
+    # K线周期 (用于趋势分析)
+    default_timeframe: str = '4h'  # 1m, 5m, 15m, 1h, 4h, 1d
+    
+    # 均线周期
+    ma_periods: List[int] = field(default_factory=lambda: [7, 25, 99])
+
+    # === 飞书云文档配置 ===
+    feishu_app_id: Optional[str] = None
+    feishu_app_secret: Optional[str] = None
+    feishu_folder_token: Optional[str] = None  # 目标文件夹 Token
+
+    # === 数据源 API Token (保留兼容) ===
+    tushare_token: Optional[str] = None
+    
+    # === AI 分析配置 ===
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-3-flash-preview"  # 主模型
+    gemini_model_fallback: str = "gemini-2.5-flash"  # 备选模型
+    
+    # Gemini API 请求配置（防止 429 限流）
+    gemini_request_delay: float = 2.0  # 请求间隔（秒）
+    gemini_max_retries: int = 5  # 最大重试次数
+    gemini_retry_delay: float = 5.0  # 重试基础延时（秒）
+    
+    # OpenAI 兼容 API（备选，当 Gemini 不可用时使用）
+    openai_api_key: Optional[str] = None
+    openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1
+    openai_model: str = "gpt-4o-mini"  # OpenAI 兼容模型名称
+    
+    # === 搜索引擎配置（支持多 Key 负载均衡）===
+    bocha_api_keys: List[str] = field(default_factory=list)  # Bocha API Keys
+    tavily_api_keys: List[str] = field(default_factory=list)  # Tavily API Keys
+    serpapi_keys: List[str] = field(default_factory=list)  # SerpAPI Keys
+    
+    # === 通知配置（可同时配置多个，全部推送）===
+    
+    # 企业微信 Webhook
+    wechat_webhook_url: Optional[str] = None
+    
+    # 飞书 Webhook
+    feishu_webhook_url: Optional[str] = None
+    
+    # Telegram 配置（需要同时配置 Bot Token 和 Chat ID）
+    telegram_bot_token: Optional[str] = None  # Bot Token（@BotFather 获取）
+    telegram_chat_id: Optional[str] = None  # Chat ID
+    
+    # 邮件配置（只需邮箱和授权码，SMTP 自动识别）
+    email_sender: Optional[str] = None  # 发件人邮箱
+    email_password: Optional[str] = None  # 邮箱密码/授权码
+    email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
+    
+    # Pushover 配置（手机/桌面推送通知）
+    pushover_user_key: Optional[str] = None  # 用户 Key（https://pushover.net 获取）
+    pushover_api_token: Optional[str] = None  # 应用 API Token
+    
+    # 自定义 Webhook（支持多个，逗号分隔）
+    # 适用于：钉钉、Discord、Slack、自建服务等任意支持 POST JSON 的 Webhook
+    custom_webhook_urls: List[str] = field(default_factory=list)
+    custom_webhook_bearer_token: Optional[str] = None  # Bearer Token（用于需要认证的 Webhook）
+    
+    # 单币推送模式：每分析完一个代币立即推送，而不是汇总后推送
+    single_stock_notify: bool = False
+    single_crypto_notify: bool = False  # 新增：加密货币版
+    
+    # 消息长度限制（字节）- 超长自动分批发送
+    feishu_max_bytes: int = 20000  # 飞书限制约 20KB，默认 20000 字节
+    wechat_max_bytes: int = 4000   # 企业微信限制 4096 字节，默认 4000 字节
+    
+    # === 数据库配置 ===
+    database_path: str = "./data/crypto_analysis.db"
+    
+    # === 日志配置 ===
+    log_dir: str = "./logs"  # 日志文件目录
+    log_level: str = "INFO"  # 日志级别
+    
+    # === 系统配置 ===
+    max_workers: int = 3  # 低并发防封禁
+    debug: bool = False
+    
+    # === 定时任务配置 ===
+    schedule_enabled: bool = False            # 是否启用定时任务
+    schedule_time: str = "08:00"              # 每日推送时间（HH:MM 格式）- 加密货币24小时交易，默认早8点
+    market_review_enabled: bool = True        # 是否启用市场复盘
+    
+    # === 流控配置（防封禁关键参数）===
+    # CCXT 请求间隔（秒）
+    ccxt_request_delay: float = 0.5
+    
+    # GeckoTerminal 请求间隔（秒）
+    geckoterminal_request_delay: float = 0.5
+    
+    # Akshare 请求间隔范围（秒）- 保留兼容
+    akshare_sleep_min: float = 2.0
+    akshare_sleep_max: float = 5.0
+    
+    # Tushare 每分钟最大请求数（免费配额）- 保留兼容
+    tushare_rate_limit_per_minute: int = 80
+    
+    # 重试配置
+    max_retries: int = 3
+    retry_base_delay: float = 1.0
+    retry_max_delay: float = 30.0
+    
+    # 单例实例存储
+    _instance: Optional['Config'] = None
+    
+    @classmethod
+    def get_instance(cls) -> 'Config':
+        """
+        获取配置单例实例
+        
+        单例模式确保：
+        1. 全局只有一个配置实例
+        2. 配置只从环境变量加载一次
+        3. 所有模块共享相同配置
+        """
+        if cls._instance is None:
+            cls._instance = cls._load_from_env()
+        return cls._instance
+    
+    @classmethod
+    def _load_from_env(cls) -> 'Config':
+        """
+        从 .env 文件加载配置
+        
+        加载优先级：
+        1. 系统环境变量
+        2. .env 文件
+        3. 代码中的默认值
+        """
+        # 加载项目根目录下的 .env 文件
+        env_path = Path(__file__).parent / '.env'
+        load_dotenv(dotenv_path=env_path)
+        
+        # 解析加密货币列表（逗号分隔）
+        crypto_list_str = os.getenv('CRYPTO_LIST', '')
+        crypto_list = [
+            code.strip() 
+            for code in crypto_list_str.split(',') 
+            if code.strip()
+        ]
+        
+        # 如果没有配置，使用默认的示例代币
+        if not crypto_list:
+            crypto_list = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
+        
+        # 保留 stock_list 兼容（已废弃）
+        stock_list_str = os.getenv('STOCK_LIST', '')
+        stock_list = [
+            code.strip() 
+            for code in stock_list_str.split(',') 
+            if code.strip()
+        ]
+        
+        # 解析偏好链列表
+        chains_str = os.getenv('PREFERRED_CHAINS', 'sol,eth,bsc')
+        preferred_chains = [c.strip() for c in chains_str.split(',') if c.strip()]
+        
+        # 解析均线周期
+        ma_str = os.getenv('MA_PERIODS', '7,25,99')
+        ma_periods = [int(p.strip()) for p in ma_str.split(',') if p.strip().isdigit()]
+        
+        # 解析搜索引擎 API Keys（支持多个 key，逗号分隔）
+        bocha_keys_str = os.getenv('BOCHA_API_KEYS', '')
+        bocha_api_keys = [k.strip() for k in bocha_keys_str.split(',') if k.strip()]
+        
+        tavily_keys_str = os.getenv('TAVILY_API_KEYS', '')
+        tavily_api_keys = [k.strip() for k in tavily_keys_str.split(',') if k.strip()]
+        
+        serpapi_keys_str = os.getenv('SERPAPI_API_KEYS', '')
+        serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
+        
+        return cls(
+            # 加密货币配置
+            crypto_list=crypto_list,
+            stock_list=stock_list,  # 保留兼容
+            default_exchange=os.getenv('DEFAULT_EXCHANGE', 'binance'),
+            binance_api_key=os.getenv('BINANCE_API_KEY'),
+            binance_api_secret=os.getenv('BINANCE_API_SECRET'),
+            okx_api_key=os.getenv('OKX_API_KEY'),
+            okx_api_secret=os.getenv('OKX_API_SECRET'),
+            okx_passphrase=os.getenv('OKX_PASSPHRASE'),
+            geckoterminal_api_key=os.getenv('GECKOTERMINAL_API_KEY'),
+            preferred_chains=preferred_chains,
+            bias_threshold=float(os.getenv('BIAS_THRESHOLD', '10.0')),
+            whale_threshold_usd=float(os.getenv('WHALE_THRESHOLD_USD', '100000.0')),
+            default_timeframe=os.getenv('DEFAULT_TIMEFRAME', '4h'),
+            ma_periods=ma_periods,
+            
+            # 飞书配置
+            feishu_app_id=os.getenv('FEISHU_APP_ID'),
+            feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
+            feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),
+            
+            # 保留兼容
+            tushare_token=os.getenv('TUSHARE_TOKEN'),
+            
+            # AI 配置
+            gemini_api_key=os.getenv('GEMINI_API_KEY'),
+            gemini_model=os.getenv('GEMINI_MODEL', 'gemini-3-flash-preview'),
+            gemini_model_fallback=os.getenv('GEMINI_MODEL_FALLBACK', 'gemini-2.5-flash'),
+            gemini_request_delay=float(os.getenv('GEMINI_REQUEST_DELAY', '2.0')),
+            gemini_max_retries=int(os.getenv('GEMINI_MAX_RETRIES', '5')),
+            gemini_retry_delay=float(os.getenv('GEMINI_RETRY_DELAY', '5.0')),
+            openai_api_key=os.getenv('OPENAI_API_KEY'),
+            openai_base_url=os.getenv('OPENAI_BASE_URL'),
+            openai_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+            
+            # 搜索引擎
+            bocha_api_keys=bocha_api_keys,
+            tavily_api_keys=tavily_api_keys,
+            serpapi_keys=serpapi_keys,
+            
+            # 通知配置
+            wechat_webhook_url=os.getenv('WECHAT_WEBHOOK_URL'),
+            feishu_webhook_url=os.getenv('FEISHU_WEBHOOK_URL'),
+            telegram_bot_token=os.getenv('TELEGRAM_BOT_TOKEN'),
+            telegram_chat_id=os.getenv('TELEGRAM_CHAT_ID'),
+            email_sender=os.getenv('EMAIL_SENDER'),
+            email_password=os.getenv('EMAIL_PASSWORD'),
+            email_receivers=[r.strip() for r in os.getenv('EMAIL_RECEIVERS', '').split(',') if r.strip()],
+            pushover_user_key=os.getenv('PUSHOVER_USER_KEY'),
+            pushover_api_token=os.getenv('PUSHOVER_API_TOKEN'),
+            custom_webhook_urls=[u.strip() for u in os.getenv('CUSTOM_WEBHOOK_URLS', '').split(',') if u.strip()],
+            custom_webhook_bearer_token=os.getenv('CUSTOM_WEBHOOK_BEARER_TOKEN'),
+            single_stock_notify=os.getenv('SINGLE_STOCK_NOTIFY', 'false').lower() == 'true',
+            single_crypto_notify=os.getenv('SINGLE_CRYPTO_NOTIFY', 'false').lower() == 'true',
+            feishu_max_bytes=int(os.getenv('FEISHU_MAX_BYTES', '20000')),
+            wechat_max_bytes=int(os.getenv('WECHAT_MAX_BYTES', '4000')),
+            
+            # 系统配置
+            database_path=os.getenv('DATABASE_PATH', './data/crypto_analysis.db'),
+            log_dir=os.getenv('LOG_DIR', './logs'),
+            log_level=os.getenv('LOG_LEVEL', 'INFO'),
+            max_workers=int(os.getenv('MAX_WORKERS', '3')),
+            debug=os.getenv('DEBUG', 'false').lower() == 'true',
+            schedule_enabled=os.getenv('SCHEDULE_ENABLED', 'false').lower() == 'true',
+            schedule_time=os.getenv('SCHEDULE_TIME', '08:00'),
+            market_review_enabled=os.getenv('MARKET_REVIEW_ENABLED', 'true').lower() == 'true',
+            
+            # 流控配置
+            ccxt_request_delay=float(os.getenv('CCXT_REQUEST_DELAY', '0.5')),
+            geckoterminal_request_delay=float(os.getenv('GECKOTERMINAL_REQUEST_DELAY', '0.5')),
+        )
+    
+    @classmethod
+    def reset_instance(cls) -> None:
+        """重置单例（主要用于测试）"""
+        cls._instance = None
+
+    def refresh_crypto_list(self) -> None:
+        """
+        热读取 CRYPTO_LIST 环境变量并更新配置中的代币列表
+        
+        支持两种配置方式：
+        1. .env 文件（本地开发、定时任务模式） - 修改后下次执行自动生效
+        2. 系统环境变量（GitHub Actions、Docker） - 启动时固定，运行中不变
+        """
+        # 若 .env 中配置了 CRYPTO_LIST，则以 .env 为准；否则回退到系统环境变量
+        env_path = Path(__file__).parent / '.env'
+        crypto_list_str = ''
+        if env_path.exists():
+            env_values = dotenv_values(env_path)
+            crypto_list_str = (env_values.get('CRYPTO_LIST') or '').strip()
+
+        if not crypto_list_str:
+            crypto_list_str = os.getenv('CRYPTO_LIST', '')
+
+        crypto_list = [
+            code.strip()
+            for code in crypto_list_str.split(',')
+            if code.strip()
+        ]
+
+        if not crypto_list:        
+            crypto_list = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
+
+        self.crypto_list = crypto_list
+
+    def refresh_stock_list(self) -> None:
+        """
+        热读取 STOCK_LIST 环境变量并更新配置中的自选股列表
+        (已废弃，保留兼容)
+        """
+        env_path = Path(__file__).parent / '.env'
+        stock_list_str = ''
+        if env_path.exists():
+            env_values = dotenv_values(env_path)
+            stock_list_str = (env_values.get('STOCK_LIST') or '').strip()
+
+        if not stock_list_str:
+            stock_list_str = os.getenv('STOCK_LIST', '')
+
+        stock_list = [
+            code.strip()
+            for code in stock_list_str.split(',')
+            if code.strip()
+        ]
+
+        if not stock_list:        
+            stock_list = ['000001']
+
+        self.stock_list = stock_list
+    
+    def validate(self) -> List[str]:
+        """
+        验证配置完整性
+        
+        Returns:
+            缺失或无效配置项的警告列表
+        """
+        warnings = []
+        
+        if not self.crypto_list:
+            warnings.append("警告：未配置加密货币列表 (CRYPTO_LIST)")
+        
+        # 检查交易所配置
+        if self.default_exchange == 'okx':
+            if not self.okx_api_key:
+                warnings.append("提示：未配置 OKX API Key，将只能访问公开数据")
+        elif self.default_exchange == 'binance':
+            if not self.binance_api_key:
+                warnings.append("提示：未配置 Binance API Key，将只能访问公开数据")
+        
+        if not self.gemini_api_key and not self.openai_api_key:
+            warnings.append("警告：未配置 Gemini 或 OpenAI API Key，AI 分析功能将不可用")
+        elif not self.gemini_api_key:
+            warnings.append("提示：未配置 Gemini API Key，将使用 OpenAI 兼容 API")
+        
+        if not self.bocha_api_keys and not self.tavily_api_keys and not self.serpapi_keys:
+            warnings.append("提示：未配置搜索引擎 API Key (Bocha/Tavily/SerpAPI)，新闻搜索功能将不可用")
+        
+        # 检查通知配置
+        has_notification = (
+            self.wechat_webhook_url or 
+            self.feishu_webhook_url or
+            (self.telegram_bot_token and self.telegram_chat_id) or
+            (self.email_sender and self.email_password) or
+            (self.pushover_user_key and self.pushover_api_token)
+        )
+        if not has_notification:
+            warnings.append("提示：未配置通知渠道，将不发送推送通知")
+        
+        return warnings
+    
+    def get_db_url(self) -> str:
+        """
+        获取 SQLAlchemy 数据库连接 URL
+        
+        自动创建数据库目录（如果不存在）
+        """
+        db_path = Path(self.database_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{db_path.absolute()}"
+    
+    def parse_crypto_identifier(self, identifier: str) -> dict:
+        """
+        解析加密货币标识符
+        
+        支持的格式：
+        1. "BTC/USDT" - 交易所代币
+        2. "binance:BTC/USDT" - 指定交易所
+        3. "sol:address" - 链上代币
+        4. "geckoterminal:sol:address" - 明确使用链上数据
+        
+        Returns:
+            {
+                'type': 'exchange' | 'onchain',
+                'exchange': 'binance' | None,
+                'chain': 'sol' | None,
+                'symbol': 'BTC/USDT' | None,
+                'address': 'xxx' | None,
+            }
+        """
+        identifier = identifier.strip()
+        
+        # 检查是否是链上代币 (包含地址特征)
+        is_address = len(identifier) > 30 or (
+            ':' in identifier and 
+            not any(identifier.upper().startswith(ex + ':') for ex in ['BINANCE', 'OKX', 'BYBIT', 'GATE'])
+        )
+        
+        if is_address or identifier.startswith('geckoterminal:'):
+            # 链上代币
+            parts = identifier.replace('geckoterminal:', '').split(':', 1)
+            if len(parts) == 2:
+                return {
+                    'type': 'onchain',
+                    'exchange': None,
+                    'chain': parts[0].lower(),
+                    'symbol': None,
+                    'address': parts[1],
+                }
+            else:
+                # 默认 Solana
+                return {
+                    'type': 'onchain',
+                    'exchange': None,
+                    'chain': 'sol',
+                    'symbol': None,
+                    'address': identifier,
+                }
+        else:
+            # 交易所代币
+            if ':' in identifier:
+                parts = identifier.split(':', 1)
+                return {
+                    'type': 'exchange',
+                    'exchange': parts[0].lower(),
+                    'chain': None,
+                    'symbol': parts[1].upper(),
+                    'address': None,
+                }
+            else:
+                return {
+                    'type': 'exchange',
+                    'exchange': self.default_exchange,
+                    'chain': None,
+                    'symbol': identifier.upper(),
+                    'address': None,
+                }
+
+
+# === 便捷的配置访问函数 ===
+def get_config() -> Config:
+    """获取全局配置实例的快捷方式"""
+    return Config.get_instance()
+
+
+if __name__ == "__main__":
+    # 测试配置加载
+    config = get_config()
+    print("=== 配置加载测试 ===")
+    print(f"加密货币列表: {config.crypto_list}")
+    print(f"默认交易所: {config.default_exchange}")
+    print(f"偏好链: {config.preferred_chains}")
+    print(f"乖离率阈值: {config.bias_threshold}%")
+    print(f"数据库路径: {config.database_path}")
+    print(f"最大并发数: {config.max_workers}")
+    print(f"调试模式: {config.debug}")
+    
+    # 验证配置
+    warnings = config.validate()
+    if warnings:
+        print("\n配置验证结果:")
+        for w in warnings:
+            print(f"  - {w}")
+    
+    # 测试标识符解析
+    print("\n=== 标识符解析测试 ===")
+    test_ids = [
+        'BTC/USDT',
+        'binance:ETH/USDT',
+        'sol:pump123456789abcdef',
+        'eth:0x1234567890abcdef1234567890abcdef12345678',
+    ]
+    for tid in test_ids:
+        result = config.parse_crypto_identifier(tid)
+        print(f"  {tid} -> {result}")
