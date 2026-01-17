@@ -25,7 +25,8 @@ import time
 import requests
 import pandas as pd
 
-from .base import BaseFetcher
+# 注意：GeckoTerminalFetcher 不继承 BaseFetcher，因为它是为链上 DEX 数据设计的，
+# 有完全不同的接口（get_token_info, get_trending_tokens 等）
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ class OnchainMetrics:
     risk_score: Optional[int] = None
 
 
-class GeckoTerminalFetcher(BaseFetcher):
+class GeckoTerminalFetcher:
     """
     GeckoTerminal API 数据获取器
     
@@ -133,6 +134,9 @@ class GeckoTerminalFetcher(BaseFetcher):
         # 获取热门代币
         trending = fetcher.get_trending_tokens('sol')
     """
+    
+    # 数据源名称
+    name: str = "GeckoTerminalFetcher"
     
     BASE_URL = "https://api.geckoterminal.com/api/v2"
     
@@ -182,8 +186,6 @@ class GeckoTerminalFetcher(BaseFetcher):
             timeout: 请求超时(秒)
             rate_limit_delay: 请求间隔(秒)，避免触发限速
         """
-        super().__init__()
-        
         self.api_key = api_key
         self.timeout = timeout
         self.rate_limit_delay = rate_limit_delay
