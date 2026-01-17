@@ -1,9 +1,10 @@
-name: 每日股票分析
+name: 每日加密货币分析
 
 on:
-  # 定时触发 - 每天北京时间 18:00 (UTC 10:00)
+  # 定时触发 - 加密货币24小时交易，每天两次分析
   schedule:
-    - cron: '0 10 * * 1-5'  # 周一到周五，UTC 10:00 = 北京时间 18:00
+    - cron: '0 0 * * *'   # UTC 00:00 = 北京时间 08:00
+    - cron: '0 12 * * *'  # UTC 12:00 = 北京时间 20:00
   
   # 手动触发
   workflow_dispatch:
@@ -14,9 +15,9 @@ on:
         default: 'full'
         type: choice
         options:
-          - full          # 完整分析（股票+大盘）
-          - market-only   # 仅大盘复盘
-          - stocks-only   # 仅股票分析
+          - full          # 完整分析（币种+市场）
+          - market-only   # 仅市场复盘
+          - crypto-only   # 仅币种分析
 
 jobs:
   analyze:
@@ -41,16 +42,13 @@ jobs:
         run: |
           mkdir -p data logs reports
       
-      - name: 执行股票分析
+      - name: 执行加密货币分析
         env:
           # Gemini AI
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3-flash-preview' }}
           GEMINI_MODEL_FALLBACK: ${{ secrets.GEMINI_MODEL_FALLBACK || 'gemini-2.5-flash' }}
           GEMINI_REQUEST_DELAY: '3.0'  # GitHub Actions 建议增加延时
-          
-          # 数据源 (可选)
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           
           # 搜索服务
           BOCHA_API_KEYS: ${{ secrets.BOCHA_API_KEYS }}
@@ -81,29 +79,38 @@ jobs:
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_FOLDER_TOKEN: ${{ secrets.FEISHU_FOLDER_TOKEN }}
 
+          # 加密货币配置
+          CRYPTO_LIST: ${{ secrets.CRYPTO_LIST || 'BTC/USDT,ETH/USDT,SOL/USDT' }}
+          PREFERRED_EXCHANGES: ${{ secrets.PREFERRED_EXCHANGES || 'binance,okx' }}
+          PREFERRED_CHAINS: ${{ secrets.PREFERRED_CHAINS || 'solana,ethereum,bsc' }}
           
-          # 自选股列表 (从 secrets 或使用默认值)
-          STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}
+          # 交易所 API（可选，提高限额）
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+          OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
+          OKX_API_SECRET: ${{ secrets.OKX_API_SECRET }}
+          OKX_PASSPHRASE: ${{ secrets.OKX_PASSPHRASE }}
           
           # 其他配置
           LOG_LEVEL: INFO
-          DATA_DAYS: 60
-          MAX_CONCURRENT: 3
+          MAX_WORKERS: 3
+          BIAS_THRESHOLD: '10.0'
         run: |
           # 判断运行模式
           MODE="${{ github.event.inputs.mode || 'full' }}"
           
           echo "=========================================="
+          echo "🪙 加密货币智能分析系统"
+          echo "=========================================="
           echo "运行模式: $MODE"
-          echo "自选股: $STOCK_LIST"
+          echo "监控币种: $CRYPTO_LIST"
+          echo "首选交易所: $PREFERRED_EXCHANGES"
           echo "时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
-          echo "BOCHA_API_KEYS 是否配置: $([ -n "$BOCHA_API_KEYS" ] && echo '是' || echo '否')"
-          echo "BOCHA_API_KEYS 长度: ${#BOCHA_API_KEYS}"
           echo "=========================================="
           
           if [ "$MODE" = "market-only" ]; then
             python main.py --market-review
-          elif [ "$MODE" = "stocks-only" ]; then
+          elif [ "$MODE" = "crypto-only" ]; then
             python main.py --no-market-review
           else
             python main.py
@@ -113,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: analysis-reports-${{ github.run_number }}
+          name: crypto-analysis-reports-${{ github.run_number }}
           path: |
             reports/
             logs/
@@ -123,7 +130,7 @@ jobs:
         if: always()
         run: |
           echo "=========================================="
-          echo "分析完成"
+          echo "🎉 分析完成"
           echo "=========================================="
           if [ -d "reports" ]; then
             echo "生成的报告:"
