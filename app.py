@@ -338,8 +338,8 @@ def start_telegram_bot():
         # 获取配置
         config = get_config()
         
-        # 初始化上下文管理器
-        init_context_manager(config.to_dict())
+        # 初始化上下文管理器（不传递 config，使用默认值）
+        init_context_manager()
         
         # 创建新的事件循环
         loop = asyncio.new_event_loop()
