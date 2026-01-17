@@ -324,7 +324,7 @@ with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as
 
 
 def start_telegram_bot():
-    """在后台线程中启动 Telegram Bot"""
+    """在后台线程中启动 Telegram Bot（异步方式）"""
     telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
     if not telegram_token:
         logger.info("未配置 TELEGRAM_BOT_TOKEN，跳过 Telegram Bot 启动")
@@ -339,15 +339,11 @@ def start_telegram_bot():
     try:
         from bot.telegram_bot import TelegramBot
         from bot.context_manager import init_context_manager
-        from config import get_config
         
-        # 获取配置
-        config = get_config()
-        
-        # 初始化上下文管理器（不传递 config，使用默认值）
+        # 初始化上下文管理器
         init_context_manager()
         
-        # 创建新的事件循环
+        # 创建新的事件循环（在后台线程中需要创建新的循环）
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -376,11 +372,22 @@ def start_telegram_bot():
         
         logger.info("🤖 Telegram Bot 启动中...")
         
-        # 运行 bot（阻塞式）
-        bot.run()
+        # 使用异步方式启动（适用于后台线程）
+        async def run_bot():
+            await bot.start_polling()
+            # 保持运行
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                await bot.stop()
+        
+        loop.run_until_complete(run_bot())
         
     except Exception as e:
-        logger.error(f"Telegram Bot 启动失败: {e}")
+        logger.error(f"Telegram Bot 启动失败: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
