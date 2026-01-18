@@ -480,10 +480,11 @@ with gr.Blocks(title="🪙 加密货币智能分析") as demo:
                     value="https://api.openai.com/v1"
                 )
                 
-                img_model = gr.Dropdown(
+                img_model = gr.Textbox(
                     label="图像生成模型",
-                    choices=["dall-e-3", "dall-e-2", "gpt-4o", "flux-schnell"],
-                    value="dall-e-3"
+                    placeholder="如: dall-e-3, Kwai-Kolors/Kolors, flux-schnell",
+                    value="dall-e-3",
+                    info="可输入任意模型名称，常用: dall-e-3, flux-schnell, Kwai-Kolors/Kolors"
                 )
                 
                 img_style = gr.Radio(
@@ -521,9 +522,13 @@ with gr.Blocks(title="🪙 加密货币智能分析") as demo:
         | 服务商 | Base URL | 模型名称 | 说明 |
         |--------|----------|----------|------|
         | OpenAI | `https://api.openai.com/v1` | `dall-e-3` | 官方 DALL-E 3 |
-        | 硅基流动 | `https://api.siliconflow.cn/v1` | `flux-schnell` | 国内可用 |
+        | 硅基流动 | `https://api.siliconflow.cn/v1` | `Kwai-Kolors/Kolors` | 可灵 (国内可用) |
+        | 硅基流动 | `https://api.siliconflow.cn/v1` | `black-forest-labs/FLUX.1-schnell` | Flux (国内可用) |
+        | 硅基流动 | `https://api.siliconflow.cn/v1` | `stabilityai/stable-diffusion-3-5-large` | SD 3.5 |
         
-        > 注意：分析和图片生成可以使用**同一个 API Key 和 Base URL**，但模型名称不同。
+        > 💡 模型名称可以**自由输入**，支持任意 OpenAI 兼容 API 的图像生成模型。
+        >
+        > 📌 分析和图片生成可以使用**同一个 API Key 和 Base URL**，只需要更换模型名称。
         """)
     
     gr.Markdown("""
