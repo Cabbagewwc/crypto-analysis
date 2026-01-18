@@ -381,7 +381,7 @@ def generate_market_image(
 
 
 # 创建 Gradio 界面
-with gr.Blocks(title="🪙 加密货币智能分析", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="🪙 加密货币智能分析") as demo:
     gr.Markdown("""
     # 🪙 加密货币智能分析系统
     
@@ -645,11 +645,20 @@ def start_telegram_bot():
 
 
 if __name__ == "__main__":
-    # 在后台线程中启动 Telegram Bot
-    telegram_thread = threading.Thread(target=start_telegram_bot, daemon=True)
-    telegram_thread.start()
+    # 检查是否在 HuggingFace Spaces 环境
+    is_hf_space = os.environ.get('SPACE_ID') is not None
+    
+    # 只在非 HuggingFace 环境或明确启用时启动 Telegram Bot
+    if not is_hf_space or os.environ.get('ENABLE_TELEGRAM_IN_HF', '').lower() == 'true':
+        telegram_thread = threading.Thread(target=start_telegram_bot, daemon=True)
+        telegram_thread.start()
+    else:
+        logger.info("检测到 HuggingFace Spaces 环境，跳过 Telegram Bot 启动（网络受限）")
     
     logger.info("🚀 启动 Gradio Web UI...")
     
-    # 启动 Gradio
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    # 启动 Gradio (Gradio 6.0+ 使用 launch() 传递 theme)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )
