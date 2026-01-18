@@ -11,6 +11,7 @@ import os
 import asyncio
 import threading
 import logging
+import json
 import gradio as gr
 from datetime import datetime
 from typing import Optional, Tuple
@@ -393,14 +394,62 @@ def generate_market_image(
         return None, f"❌ 生成失败: {str(e)}"
 
 
+# 获取环境变量中的默认值（HuggingFace Secrets 支持）
+DEFAULT_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+DEFAULT_BASE_URL = os.environ.get('OPENAI_BASE_URL', '')
+DEFAULT_MODEL = os.environ.get('OPENAI_MODEL', 'deepseek-chat')
+DEFAULT_IMG_MODEL = os.environ.get('IMAGE_MODEL', 'dall-e-3')
+
+
+def save_settings(api_key, base_url, model, img_api_key, img_base_url, img_model):
+    """保存设置到浏览器状态"""
+    return {
+        "api_key": api_key,
+        "base_url": base_url,
+        "model": model,
+        "img_api_key": img_api_key,
+        "img_base_url": img_base_url,
+        "img_model": img_model
+    }
+
+
+def load_settings(saved_state):
+    """从浏览器状态加载设置"""
+    if saved_state and isinstance(saved_state, dict):
+        return (
+            saved_state.get("api_key", DEFAULT_API_KEY),
+            saved_state.get("base_url", DEFAULT_BASE_URL),
+            saved_state.get("model", DEFAULT_MODEL),
+            saved_state.get("img_api_key", DEFAULT_API_KEY),
+            saved_state.get("img_base_url", DEFAULT_BASE_URL or "https://api.openai.com/v1"),
+            saved_state.get("img_model", DEFAULT_IMG_MODEL)
+        )
+    return (DEFAULT_API_KEY, DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_BASE_URL or "https://api.openai.com/v1", DEFAULT_IMG_MODEL)
+
+
 # 创建 Gradio 界面
 with gr.Blocks(title="🪙 加密货币智能分析") as demo:
+    # 浏览器状态持久化（localStorage）
+    saved_settings = gr.BrowserState(
+        default_value={
+            "api_key": DEFAULT_API_KEY,
+            "base_url": DEFAULT_BASE_URL,
+            "model": DEFAULT_MODEL,
+            "img_api_key": DEFAULT_API_KEY,
+            "img_base_url": DEFAULT_BASE_URL or "https://api.openai.com/v1",
+            "img_model": DEFAULT_IMG_MODEL
+        },
+        storage_key="crypto_analysis_settings"
+    )
+    
     gr.Markdown("""
     # 🪙 加密货币智能分析系统
     
     基于 AI 的加密货币分析工具，提供技术分析、趋势判断和 AI 投资建议。
     
     > ⚠️ 本工具仅供学习研究，不构成投资建议。加密货币市场风险极高，请谨慎投资。
+    >
+    > 💾 **提示**: 您的 API 配置会自动保存到浏览器，刷新页面后会自动恢复。
     """)
     
     with gr.Tab("📈 币种分析"):
@@ -421,18 +470,20 @@ with gr.Blocks(title="🪙 加密货币智能分析") as demo:
                 api_key_input = gr.Textbox(
                     label="API Key",
                     placeholder="OpenAI 兼容 API Key",
-                    type="password"
+                    type="password",
+                    value=DEFAULT_API_KEY
                 )
                 
                 api_base_url = gr.Textbox(
                     label="API Base URL",
                     placeholder="如: https://api.deepseek.com/v1",
-                    visible=True
+                    visible=True,
+                    value=DEFAULT_BASE_URL
                 )
                 
                 model_name = gr.Textbox(
                     label="模型名称",
-                    value="deepseek-chat",
+                    value=DEFAULT_MODEL,
                     visible=True
                 )
                 
@@ -484,19 +535,20 @@ with gr.Blocks(title="🪙 加密货币智能分析") as demo:
                 img_api_key = gr.Textbox(
                     label="API Key",
                     placeholder="支持图像生成的 API Key",
-                    type="password"
+                    type="password",
+                    value=DEFAULT_API_KEY
                 )
                 
                 img_base_url = gr.Textbox(
                     label="API Base URL",
                     placeholder="如: https://api.openai.com/v1",
-                    value="https://api.openai.com/v1"
+                    value=DEFAULT_BASE_URL or "https://api.openai.com/v1"
                 )
                 
                 img_model = gr.Textbox(
                     label="图像生成模型",
                     placeholder="如: dall-e-3, Kwai-Kolors/Kolors, flux-schnell",
-                    value="dall-e-3",
+                    value=DEFAULT_IMG_MODEL,
                     info="可输入任意模型名称，常用: dall-e-3, flux-schnell, Kwai-Kolors/Kolors"
                 )
                 
@@ -570,6 +622,48 @@ with gr.Blocks(title="🪙 加密货币智能分析") as demo:
     
     Made with ❤️ | [GitHub](https://github.com/Cabbagewwc/crypto-analysis)
     """)
+    
+    # ==================== 状态持久化 ====================
+    # 页面加载时恢复保存的设置
+    demo.load(
+        fn=load_settings,
+        inputs=[saved_settings],
+        outputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model]
+    )
+    
+    # 输入变化时保存设置（分析表单）
+    api_key_input.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
+    api_base_url.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
+    model_name.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
+    
+    # 输入变化时保存设置（图片生成表单）
+    img_api_key.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
+    img_base_url.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
+    img_model.change(
+        fn=save_settings,
+        inputs=[api_key_input, api_base_url, model_name, img_api_key, img_base_url, img_model],
+        outputs=[saved_settings]
+    )
 
 
 def start_telegram_bot():
