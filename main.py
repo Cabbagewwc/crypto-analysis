@@ -278,7 +278,7 @@ class CryptoAnalysisPipeline:
                 try:
                     # 使用加密货币专用搜索
                     intel_results = self.search_service.search_crypto_news(
-                        crypto_symbol=symbol,
+                        symbol=symbol,
                         crypto_name=crypto_name,
                         max_results=5
                     )

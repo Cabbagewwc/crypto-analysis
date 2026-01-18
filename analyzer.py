@@ -492,7 +492,7 @@ class GeminiAnalyzer:
         初始化 Gemini 模型
         
         配置：
-        - 使用 gemini-3-flash-preview 或 gemini-2.5-flash 模型
+        - 使用 gemini-2.0-flash-exp 或 gemini-1.5-flash 模型
         - 不启用 Google Search（使用外部 Tavily/SerpAPI 搜索）
         """
         try:
@@ -506,6 +506,8 @@ class GeminiAnalyzer:
             model_name = config.gemini_model
             fallback_model = config.gemini_model_fallback
             
+            logger.info(f"[Gemini] 正在初始化主模型: {model_name}")
+            
             # 不再使用 Google Search Grounding（已知有兼容性问题）
             # 改为使用外部搜索服务（Tavily/SerpAPI）预先获取新闻
             
@@ -517,20 +519,26 @@ class GeminiAnalyzer:
                 )
                 self._current_model_name = model_name
                 self._using_fallback = False
-                logger.info(f"Gemini 模型初始化成功 (模型: {model_name})")
+                logger.info(f"[Gemini] 模型初始化成功 ✓ (模型: {model_name})")
             except Exception as model_error:
                 # 尝试备选模型
-                logger.warning(f"主模型 {model_name} 初始化失败: {model_error}，尝试备选模型 {fallback_model}")
+                logger.warning(f"[Gemini] 主模型 {model_name} 初始化失败: {model_error}")
+                logger.info(f"[Gemini] 尝试备选模型: {fallback_model}")
                 self._model = genai.GenerativeModel(
                     model_name=fallback_model,
                     system_instruction=self.SYSTEM_PROMPT,
                 )
                 self._current_model_name = fallback_model
                 self._using_fallback = True
-                logger.info(f"Gemini 备选模型初始化成功 (模型: {fallback_model})")
+                logger.info(f"[Gemini] 备选模型初始化成功 ✓ (模型: {fallback_model})")
             
+        except ImportError as ie:
+            logger.error(f"[Gemini] google-generativeai 库未安装: {ie}")
+            logger.error("[Gemini] 请运行: pip install google-generativeai")
+            self._model = None
         except Exception as e:
-            logger.error(f"Gemini 模型初始化失败: {e}")
+            logger.error(f"[Gemini] 模型初始化失败: {e}")
+            logger.error(f"[Gemini] 请检查 API Key 是否有效，模型名称是否正确")
             self._model = None
     
     def _switch_to_fallback_model(self) -> bool:
