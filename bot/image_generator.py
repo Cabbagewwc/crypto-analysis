@@ -278,6 +278,15 @@ The poster should look like a professional market report infographic that could 
         size: str
     ) -> Tuple[Optional[GeneratedImage], Optional[str]]:
         """使用兼容 API 生成图像"""
+        # 检查是否是不支持图像生成的模型
+        model_lower = self.model.lower()
+        if 'gemini' in model_lower:
+            return None, ("Gemini API 不支持图像生成。\n"
+                         "请使用以下服务：\n"
+                         "• OpenAI DALL-E: 模型 dall-e-3\n"
+                         "• 硅基流动: 模型 Kwai-Kolors/Kolors 或 flux-schnell\n"
+                         "• 请确保 API Base URL 指向支持图像生成的服务")
+        
         # 尝试使用标准 OpenAI 图像生成 API
         url = f"{self.base_url}/images/generations"
         
@@ -291,9 +300,20 @@ The poster should look like a professional market report infographic that could 
         
         response = await client.post(url, json=payload)
         
-        if response.status_code != 200:
-            # 回退到描述文本
-            return None, f"图像生成 API 不可用 (HTTP {response.status_code})"
+        if response.status_code == 404:
+            # 404 表示 API 不支持图像生成
+            return None, ("该 API 不支持图像生成 (404 Not Found)。\n"
+                         "请使用支持图像生成的 API：\n"
+                         "• OpenAI: https://api.openai.com/v1\n"
+                         "• 硅基流动: https://api.siliconflow.cn/v1")
+        elif response.status_code != 200:
+            # 其他错误
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", str(response.status_code))
+            except Exception:
+                error_msg = f"HTTP {response.status_code}"
+            return None, f"图像生成 API 错误: {error_msg}"
         
         data = response.json()
         

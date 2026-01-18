@@ -263,13 +263,13 @@ def market_overview() -> str:
             if overview.top_gainers:
                 report += "## 🚀 24H 涨幅榜\n\n"
                 for i, coin in enumerate(overview.top_gainers[:5], 1):
-                    report += f"{i}. {coin['symbol']}: +{coin['change']:.2f}%\n"
+                    report += f"{i}. {coin['symbol']}: +{coin['change_24h']:.2f}%\n"
                 report += "\n"
             
             if overview.top_losers:
                 report += "## 📉 24H 跌幅榜\n\n"
                 for i, coin in enumerate(overview.top_losers[:5], 1):
-                    report += f"{i}. {coin['symbol']}: {coin['change']:.2f}%\n"
+                    report += f"{i}. {coin['symbol']}: {coin['change_24h']:.2f}%\n"
         
         return report
         
@@ -345,9 +345,9 @@ def generate_market_image(
                     24H 成交量: ${overview.total_volume_24h:,.0f}
                     """
                     if overview.top_gainers:
-                        report_content += "\n涨幅榜: " + ", ".join([f"{c['symbol']}(+{c['change']:.1f}%)" for c in overview.top_gainers[:3]])
+                        report_content += "\n涨幅榜: " + ", ".join([f"{c['symbol']}(+{c['change_24h']:.1f}%)" for c in overview.top_gainers[:3]])
                     if overview.top_losers:
-                        report_content += "\n跌幅榜: " + ", ".join([f"{c['symbol']}({c['change']:.1f}%)" for c in overview.top_losers[:3]])
+                        report_content += "\n跌幅榜: " + ", ".join([f"{c['symbol']}({c['change_24h']:.1f}%)" for c in overview.top_losers[:3]])
             except Exception as e:
                 logger.warning(f"获取市场数据失败: {e}")
                 report_content = "加密货币市场分析 - " + datetime.now().strftime('%Y-%m-%d')

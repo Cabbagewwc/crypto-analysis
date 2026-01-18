@@ -409,7 +409,8 @@ class GeminiAnalyzer:
         self._openai_client = None  # OpenAI 客户端
         
         # 检查 Gemini API Key 是否有效（过滤占位符）
-        gemini_key_valid = self._api_key and not self._api_key.startswith('your_') and len(self._api_key) > 10
+        # 降低长度阈值以支持更多 API 提供商
+        gemini_key_valid = self._api_key and not self._api_key.startswith('your_') and len(self._api_key) > 5
         
         # 添加调试日志
         logger.info(f"[AI初始化] Gemini API Key: {'已配置' if gemini_key_valid else '未配置'} (len={len(self._api_key or '')})")
@@ -446,10 +447,11 @@ class GeminiAnalyzer:
         config = get_config()
         
         # 检查 OpenAI API Key 是否有效（过滤占位符）
+        # 降低长度阈值以支持更多 API 提供商
         openai_key_valid = (
-            config.openai_api_key and 
-            not config.openai_api_key.startswith('your_') and 
-            len(config.openai_api_key) > 10
+            config.openai_api_key and
+            not config.openai_api_key.startswith('your_') and
+            len(config.openai_api_key) > 5
         )
         
         if not openai_key_valid:
