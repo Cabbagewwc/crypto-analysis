@@ -84,18 +84,31 @@ def analyze_crypto(
                 os.environ['OPENAI_BASE_URL'] = api_base_url
             if model_name:
                 os.environ['OPENAI_MODEL'] = model_name
-            os.environ['GEMINI_API_KEY'] = ''  # 清空 Gemini，让系统使用 OpenAI
+            # 清空 Gemini，让系统使用 OpenAI
+            if 'GEMINI_API_KEY' in os.environ:
+                del os.environ['GEMINI_API_KEY']
         else:
             os.environ['GEMINI_API_KEY'] = api_key
-            os.environ['OPENAI_API_KEY'] = ''  # 清空 OpenAI
+            # 清空 OpenAI
+            if 'OPENAI_API_KEY' in os.environ:
+                del os.environ['OPENAI_API_KEY']
+        
+        # 重新加载配置以确保环境变量生效
+        import importlib
+        import config
+        importlib.reload(config)
         
         # 初始化组件
         fetcher = CCXTFetcher(exchange=exchange)
         trend_analyzer = CryptoTrendAnalyzer()
         
         # 根据提供商初始化 AI 分析器
+        # 重新导入 analyzer 模块，确保使用新配置
+        import analyzer
+        importlib.reload(analyzer)
+        from analyzer import GeminiAnalyzer
+        
         if api_provider == "openai":
-            from analyzer import GeminiAnalyzer
             ai_analyzer = GeminiAnalyzer()  # 会自动检测并使用 OpenAI
         else:
             ai_analyzer = GeminiAnalyzer(api_key=api_key)
